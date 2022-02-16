@@ -21,8 +21,13 @@ func LoadConfig() (*Config, error) {
 		return nil, errors.WithStack(err)
 	}
 
+	tg, err := LoadTelegramConfig()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	return &Config{
 		App:      app,
-		Telegram: LoadTelegramConfig(),
+		Telegram: tg,
 	}, nil
 }

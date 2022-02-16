@@ -1,11 +1,21 @@
 package config
 
+import (
+	"errors"
+	"os"
+)
+
 type Telegram struct {
 	Token string
 }
 
-func LoadTelegramConfig() *Telegram {
-	return &Telegram{
-		Token: "5274056807:AAFCd9qf2eWtnQGTph1x7IprMUTDhb9IhNk",
+func LoadTelegramConfig() (*Telegram, error) {
+	token, _ := os.LookupEnv("TELEGRAM_TOKEN")
+	if token == "" {
+		return nil, errors.New("TELEGRAM_TOKEN is unset")
 	}
+
+	return &Telegram{
+		Token: token,
+	}, nil
 }
