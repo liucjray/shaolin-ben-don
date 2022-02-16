@@ -101,6 +101,11 @@ func main() {
 				updateFunc()
 			case <-updateInterval:
 				updateFunc()
+
+				// save cookies to database
+				if err := app.RealClient.Store.Save(ctx); err != nil {
+					log.Fatal(err)
+				}
 			case <-heartbeat:
 				// call heartbeat to prevent session from expiring
 				act := action.HeartbeatAction{Client: app.Client}
