@@ -8,12 +8,12 @@
 
 3.  抓下專案
     ```shell
-    git clone git@github.com:wolftotem4/shaolin-ben-don.git
+    git clone https://github.com/wolftotem4/shaolin-ben-don.git
     ```
     
 4.  切換目錄
     ```shell
-    cd go-dope-ben-don
+    cd shaolin-ben-don
     ```
     
 4.  復製 `.env.example` 至 `.env`
