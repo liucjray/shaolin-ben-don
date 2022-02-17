@@ -131,10 +131,7 @@ func main() {
 					log.Fatal(err)
 				}
 			case <-pendingItems.Chan():
-				items := pendingItems.ExtractExpiringItems()
-				if len(items) > 0 {
-					broadcast(subscription, items, app)
-				}
+				broadcast(subscription, pendingItems.ExtractExpiringItems(), app)
 			case <-heartbeat:
 				// call heartbeat to prevent session from expiring
 				act := action.HeartbeatAction{Client: app.Client}

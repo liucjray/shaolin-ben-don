@@ -20,20 +20,21 @@ func NewPendingItems(priorTime time.Duration) *PendingItems {
 }
 
 func (info *PendingItems) Update(items []*typesjson.ProgressItem) {
-	var (
-		refTime time.Duration
-		data    []*typesjson.ProgressItem
-	)
+	info.items = items
+	info.updateTimer(info.NextTime())
+}
 
-	for _, item := range items {
-		if len(data) == 0 || item.RemainSecondBeforeExpire < refTime {
+func (info *PendingItems) NextTime() time.Duration {
+	var refTime time.Duration
+	for _, item := range info.items {
+		if (refTime == 0 || item.RemainSecondBeforeExpire < refTime) && !item.IsExpiring(info.priorTime) {
 			refTime = item.RemainSecondBeforeExpire
-			data = append(data, item)
 		}
 	}
-
-	info.items = data
-	info.updateTimer(refTime - info.priorTime)
+	if refTime == 0 {
+		return 0
+	}
+	return refTime - info.priorTime
 }
 
 func (info *PendingItems) Chan() <-chan time.Time {
@@ -47,20 +48,16 @@ func (info *PendingItems) ExtractExpiringItems() []*typesjson.ProgressItem {
 	var (
 		reports  []*typesjson.ProgressItem
 		pendings []*typesjson.ProgressItem
-		refTime  time.Duration
 	)
 	for _, item := range info.items {
 		if item.IsExpiring(info.priorTime) {
 			reports = append(reports, item)
 		} else {
-			if len(pendings) == 0 || item.RemainSecondBeforeExpire < refTime {
-				refTime = item.RemainSecondBeforeExpire
-			}
 			pendings = append(pendings, item)
 		}
 	}
 	info.items = pendings
-	info.updateTimer(refTime - info.priorTime)
+	info.updateTimer(info.NextTime())
 	return reports
 }
 
@@ -71,7 +68,7 @@ func (info *PendingItems) updateTimer(refTime time.Duration) {
 		}
 	}
 
-	if len(info.items) > 0 {
+	if refTime > 0 && len(info.items) > 0 {
 		if info.timer == nil {
 			info.timer = time.NewTimer(refTime)
 		} else {
