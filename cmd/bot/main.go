@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -15,7 +16,14 @@ import (
 	"github.com/wolftotem4/shaolin-ben-don/internal/conducts"
 	database "github.com/wolftotem4/shaolin-ben-don/internal/db"
 	"github.com/wolftotem4/shaolin-ben-don/internal/transformers"
+	"github.com/wolftotem4/shaolin-ben-don/internal/types/ctrl"
 	typesjson "github.com/wolftotem4/shaolin-ben-don/internal/types/json"
+)
+
+const (
+	helpMsg = `可用指令:
+/subscribe 訂閱訊息，有可用項目將發佈至此頻道/私人訊息
+/unsubscribe 取消訂閱`
 )
 
 type Subscription map[int64]bool
@@ -24,6 +32,9 @@ var (
 	subscribe   = make(chan int64)
 	unsubscribe = make(chan int64)
 	updateCmd   = make(chan bool)
+
+	// record item IDs in order to avoid duplicate reports
+	reported = ctrl.ReportedItems{Items: make(map[string]bool)}
 )
 
 func main() {
@@ -50,10 +61,10 @@ func main() {
 			heartbeat = time.Tick(3 * time.Minute)
 
 			// How often to trigger update
-			updateInterval = time.Tick(10 * time.Minute)
+			updateInterval = time.Tick(app.Config.App.UpdateInterval)
 
-			// record item IDs in order to avoid duplicate reports
-			reported = ReportedItems{make(map[string]bool)}
+			// Store items in the memory in order to get next expiring items
+			pendingItems = ctrl.NewPendingItems(app.Config.App.PriorTime)
 		)
 
 		log.Printf("Restoring subscriptions...")
@@ -69,12 +80,14 @@ func main() {
 			}
 
 			info := fetchItems(ctx, app, &interfaceValue)
-
 			if info.NotEmpty() {
-				reports := reported.extractUnreported(info.Items)
-				broadcast(subscription, reports, app)
-				reported.markReported(info.Items)
+				broadcast(subscription, info.Items, app)
 			}
+
+			pendingItems.Update(info.Items)
+
+			// delete expiring items in order to prevent duplication of report items.
+			pendingItems.ExtractExpiringItems()
 		}
 
 		for {
@@ -106,6 +119,11 @@ func main() {
 				if err := app.RealClient.Store.Save(ctx); err != nil {
 					log.Fatal(err)
 				}
+			case <-pendingItems.Chan():
+				items := pendingItems.ExtractExpiringItems()
+				if len(items) > 0 {
+					broadcast(subscription, items, app)
+				}
 			case <-heartbeat:
 				// call heartbeat to prevent session from expiring
 				act := action.HeartbeatAction{Client: app.Client}
@@ -132,23 +150,24 @@ func main() {
 		}
 
 		if update.Message != nil {
-			// log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-
 			switch update.Message.Text {
 			case "/subscribe":
 				subscribe <- update.Message.Chat.ID
 
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "已訂閱")
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("[%s] 已訂閱", getRoomTitleFromMessage(update.Message)))
 				app.Bot.Send(msg)
 			case "/unsubscribe":
 				unsubscribe <- update.Message.Chat.ID
 
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "已取消訂閱")
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("[%s] 已取消訂閱", getRoomTitleFromMessage(update.Message)))
 				app.Bot.Send(msg)
 			case "/update":
 				updateCmd <- true
 
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "立即抓取最新資料.")
+				app.Bot.Send(msg)
+			case "/start":
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, helpMsg)
 				app.Bot.Send(msg)
 			}
 		}
@@ -156,12 +175,20 @@ func main() {
 }
 
 func broadcast(subscription Subscription, items []*typesjson.ProgressItem, app *app.App) {
-	log.Println("Broadcasting...")
-	for chatId := range subscription {
-		t := transformers.LinkItems{Items: items, Client: app.Client}
+	var msgText string
 
-		msg := tgbotapi.NewMessage(chatId, t.String())
-		app.Bot.Send(msg)
+	{
+		t := transformers.LinkItems{Items: items, Client: app.Client}
+		msgText = t.String()
+	}
+
+	log.Printf("Broadcasting (%d items)...\n", len(items))
+	for chatId := range subscription {
+		msg := tgbotapi.NewMessage(chatId, msgText)
+		msg.ParseMode = tgbotapi.ModeHTML
+		if _, err := app.Bot.Send(msg); err != nil {
+			log.Println(err)
+		}
 	}
 	log.Println("Broadcasted.")
 }
@@ -174,6 +201,12 @@ func fetchItems(ctx context.Context, app *app.App, interfaceValue *int) *conduct
 	}
 	*interfaceValue = info.Interface
 	log.Println("Items fetched.")
+
+	// filter out reported items to prevent duplications
+	reports := reported.ExtractUnreported(info.Items)
+	reported.MarkReported(info.Items)
+	info.Items = reports
+
 	return info
 }
 
@@ -206,28 +239,6 @@ func createTable(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-type ReportedItems struct {
-	Items map[string]bool
-}
-
-func (reported *ReportedItems) extractUnreported(items []*typesjson.ProgressItem) []*typesjson.ProgressItem {
-	var reports []*typesjson.ProgressItem
-	for _, item := range items {
-		if !reported.Items[item.OrderHashId] {
-			reports = append(reports, item)
-		}
-	}
-	return reports
-}
-
-func (reported *ReportedItems) markReported(items []*typesjson.ProgressItem) {
-	var result = make(map[string]bool)
-	for _, item := range items {
-		result[item.OrderHashId] = true
-	}
-	reported.Items = result
-}
-
 func restoreSubscriptions(ctx context.Context, db *sqlx.DB) (Subscription, error) {
 	handler := database.Handler{DB: db}
 	keys, err := handler.GetSubscriptions(ctx)
@@ -241,4 +252,11 @@ func restoreSubscriptions(ctx context.Context, db *sqlx.DB) (Subscription, error
 	}
 
 	return subscription, nil
+}
+
+func getRoomTitleFromMessage(msg *tgbotapi.Message) string {
+	if msg.Chat.Title != "" {
+		return msg.Chat.Title
+	}
+	return msg.From.UserName
 }
