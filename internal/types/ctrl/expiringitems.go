@@ -33,7 +33,7 @@ func (info *PendingItems) Update(items []*typesjson.ProgressItem) {
 	}
 
 	info.items = data
-	info.updateTimer(refTime)
+	info.updateTimer(refTime - info.priorTime)
 }
 
 func (info *PendingItems) Chan() <-chan time.Time {
@@ -60,7 +60,7 @@ func (info *PendingItems) ExtractExpiringItems() []*typesjson.ProgressItem {
 		}
 	}
 	info.items = pendings
-	info.updateTimer(refTime)
+	info.updateTimer(refTime - info.priorTime)
 	return reports
 }
 

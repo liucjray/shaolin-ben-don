@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -29,6 +30,8 @@ const (
 type Subscription map[int64]bool
 
 var (
+	flagDrain = flag.Bool("drain", false, "drop first item report.")
+
 	subscribe   = make(chan int64)
 	unsubscribe = make(chan int64)
 	updateCmd   = make(chan bool)
@@ -39,6 +42,8 @@ var (
 
 func main() {
 	ctx := context.Background()
+
+	flag.Parse()
 
 	app, err := app.Register()
 	if err != nil {
@@ -73,6 +78,12 @@ func main() {
 			log.Fatal(err)
 		}
 		log.Printf("Subscriptions restored.")
+
+		if *flagDrain {
+			// prevent spam users by keeping rebooting the program
+			info := fetchItems(ctx, app, &interfaceValue)
+			pendingItems.Update(info.Items)
+		}
 
 		updateFunc := func() {
 			if len(subscription) == 0 {
