@@ -21,11 +21,6 @@ func NewPendingItems(priorTime time.Duration) *PendingItems {
 
 func (info *PendingItems) Update(items []*typesjson.ProgressItem) {
 	info.items = items
-	info.UpdateTimer()
-}
-
-func (info *PendingItems) UpdateTimer() {
-	info.updateTimer(info.NextTime())
 }
 
 func (info *PendingItems) UpdateRemainSecondBeforeExpireValues() {
@@ -53,6 +48,8 @@ func (info *PendingItems) Size() int {
 }
 
 func (info *PendingItems) Chan() <-chan time.Time {
+	info.updateTimer(info.NextTime())
+
 	if info.timer != nil {
 		return info.timer.C
 	}

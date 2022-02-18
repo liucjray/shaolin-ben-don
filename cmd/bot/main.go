@@ -136,9 +136,6 @@ func main() {
 				pendingItems.UpdateRemainSecondBeforeExpireValues()
 
 				broadcast(subscription, pendingItems.ExtractExpiringItems(), app)
-
-				// update next timer for expiring items message
-				pendingItems.UpdateTimer()
 			case <-heartbeat:
 				// call heartbeat to prevent session from expiring
 				act := action.HeartbeatAction{Client: app.Client}
