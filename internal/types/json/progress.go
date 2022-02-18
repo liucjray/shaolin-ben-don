@@ -36,6 +36,14 @@ func (item *ProgressItem) IsExpiring(priorTime time.Duration) bool {
 	return item.RemainSecondBeforeExpire > 0 && time.Duration(item.RemainSecondBeforeExpire) <= priorTime
 }
 
+func (item *ProgressItem) UpdateRemainSecondBeforeExpire(now time.Time) {
+	if !item.ExpireDate.Valid || !item.ExpireDate.Time.After(now) {
+		item.RemainSecondBeforeExpire = 0
+	} else {
+		item.RemainSecondBeforeExpire = item.ExpireDate.Time.Sub(now)
+	}
+}
+
 func (item *ProgressItem) IsExpired() bool {
 	return item.RemainSecondBeforeExpire <= 0
 }

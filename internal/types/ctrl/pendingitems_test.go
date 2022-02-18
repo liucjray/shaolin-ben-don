@@ -53,6 +53,19 @@ func TestPendingItems(t *testing.T) {
 			t.Fatalf("unexpected value (next time: %s", data.NextTime())
 		}
 	}
+
+	// ignore zero item.RemainSecondBeforeExpire
+	{
+		items := GenerateExpiringItemsForTesting(0, 2, priorTime)
+		items[1].ExpireDate = sql.NullTime{Valid: false}
+		items[1].RemainSecondBeforeExpire = 0
+
+		data.Update(items)
+
+		if data.NextTime() == 0 {
+			t.Fatal("expected non-zero value")
+		}
+	}
 }
 
 func GenerateExpiringItemsForTesting(expiring int, remote int, priorTime time.Duration) []*typesjson.ProgressItem {

@@ -1,6 +1,7 @@
 package typesjson
 
 import (
+	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
@@ -50,5 +51,21 @@ func TestIsExpiring(t *testing.T) {
 	}
 	if item.IsExpiring(0) {
 		t.Error("expect negative value")
+	}
+}
+
+func TestUpdateRemainSecondBeforeExpire(t *testing.T) {
+	now, _ := time.Parse(time.RFC3339, "2022-02-18T12:00:00+08:00")
+
+	item := &ProgressItem{ExpireDate: sql.NullTime{Time: now.Add(3 * time.Minute), Valid: true}}
+	item.UpdateRemainSecondBeforeExpire(now)
+
+	if item.RemainSecondBeforeExpire != 3*time.Minute {
+		t.Errorf("unexpected value (expected %s, actual %s)", 3*time.Minute, item.RemainSecondBeforeExpire)
+	}
+
+	item.UpdateRemainSecondBeforeExpire(now.Add(4 * time.Minute))
+	if item.RemainSecondBeforeExpire != 0 {
+		t.Errorf("unexpected value (expected 0, actual %s)", item.RemainSecondBeforeExpire)
 	}
 }

@@ -31,6 +31,7 @@ type Subscription map[int64]bool
 
 var (
 	flagDrain = flag.Bool("drain", false, "drop first item report.")
+	flagMock  = flag.String("mock", "", "read items from JSON file.")
 
 	subscribe   = make(chan int64)
 	unsubscribe = make(chan int64)
@@ -81,8 +82,8 @@ func main() {
 
 		if *flagDrain {
 			// prevent spam users by keeping rebooting the program
-			info := fetchItems(ctx, app, &interfaceValue)
-			pendingItems.Update(info.Items)
+			items := fetchItems(ctx, app, &interfaceValue)
+			pendingItems.Update(items)
 		}
 
 		updateFunc := func() {
@@ -90,12 +91,12 @@ func main() {
 				return
 			}
 
-			info := fetchItems(ctx, app, &interfaceValue)
-			if info.NotEmpty() {
-				broadcast(subscription, info.Items, app)
+			items := fetchItems(ctx, app, &interfaceValue)
+			if len(items) > 0 {
+				broadcast(subscription, items, app)
 			}
 
-			pendingItems.Update(info.Items)
+			pendingItems.Update(items)
 
 			// delete expiring items in order to prevent duplication of report items.
 			pendingItems.ExtractExpiringItems()
@@ -131,7 +132,13 @@ func main() {
 					log.Fatal(err)
 				}
 			case <-pendingItems.Chan():
+				// update remaining time from ExpiresDate
+				pendingItems.UpdateRemainSecondBeforeExpireValues()
+
 				broadcast(subscription, pendingItems.ExtractExpiringItems(), app)
+
+				// update next timer for expiring items message
+				pendingItems.UpdateTimer()
 			case <-heartbeat:
 				// call heartbeat to prevent session from expiring
 				act := action.HeartbeatAction{Client: app.Client}
@@ -201,21 +208,33 @@ func broadcast(subscription Subscription, items []*typesjson.ProgressItem, app *
 	log.Println("Broadcasted.")
 }
 
-func fetchItems(ctx context.Context, app *app.App, interfaceValue *int) *conducts.FetchItemInfo {
+func fetchItems(ctx context.Context, app *app.App, interfaceValue *int) []*typesjson.ProgressItem {
+	var (
+		items []*typesjson.ProgressItem
+	)
+
 	log.Println("Fetching Items...")
-	info, err := conducts.GetUnexpiredItems(ctx, app, *interfaceValue)
-	if err != nil {
-		log.Fatal(err)
+	if *flagMock == "" {
+		info, err := conducts.GetUnexpiredItems(ctx, app, *interfaceValue)
+		if err != nil {
+			log.Fatal(err)
+		}
+		*interfaceValue = info.Interface
+
+		items = info.Items
+	} else {
+		var err error
+		if items, err = readMockFile(); err != nil {
+			log.Fatal(err)
+		}
 	}
-	*interfaceValue = info.Interface
 	log.Println("Items fetched.")
 
 	// filter out reported items to prevent duplications
-	reports := reported.ExtractUnreported(info.Items)
-	reported.MarkReported(info.Items)
-	info.Items = reports
+	reports := reported.ExtractUnreported(items)
+	reported.MarkReported(items)
 
-	return info
+	return reports
 }
 
 func boot(ctx context.Context, app *app.App) error {

@@ -19,10 +19,6 @@ type FetchItemInfo struct {
 	Interface int
 }
 
-func (info *FetchItemInfo) NotEmpty() bool {
-	return len(info.Items) > 0
-}
-
 func FetchItems(ctx context.Context, app *app.App, interfaceValue int) (*FetchItemInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
