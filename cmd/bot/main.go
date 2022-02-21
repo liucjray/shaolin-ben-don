@@ -82,24 +82,32 @@ func main() {
 
 		if *flagDrain {
 			// prevent spam users by keeping rebooting the program
-			items := fetchItems(ctx, app, &interfaceValue)
+			items, _ := fetchItems(ctx, app, &interfaceValue)
 			pendingItems.Update(items)
 		}
 
 		updateFunc := func() {
+			var (
+				// items for broadcast
+				reports []*typesjson.ProgressItem
+
+				// all fetched items
+				all []*typesjson.ProgressItem
+			)
+
 			if len(subscription) == 0 {
 				return
 			}
 
-			items := fetchItems(ctx, app, &interfaceValue)
-			if len(items) > 0 {
-				broadcast(subscription, items, app)
+			reports, all = fetchItems(ctx, app, &interfaceValue)
+			pendingItems.Update(all)
+
+			if len(reports) > 0 {
+				broadcast(subscription, reports, app)
+
+				// delete expiring items in order to prevent duplication of report items.
+				pendingItems.ExtractExpiringItems()
 			}
-
-			pendingItems.Update(items)
-
-			// delete expiring items in order to prevent duplication of report items.
-			pendingItems.ExtractExpiringItems()
 		}
 
 		for {
@@ -205,7 +213,7 @@ func broadcast(subscription Subscription, items []*typesjson.ProgressItem, app *
 	log.Println("Broadcasted.")
 }
 
-func fetchItems(ctx context.Context, app *app.App, interfaceValue *int) []*typesjson.ProgressItem {
+func fetchItems(ctx context.Context, app *app.App, interfaceValue *int) ([]*typesjson.ProgressItem, []*typesjson.ProgressItem) {
 	var (
 		items []*typesjson.ProgressItem
 	)
@@ -231,7 +239,7 @@ func fetchItems(ctx context.Context, app *app.App, interfaceValue *int) []*types
 	reports := reported.ExtractUnreported(items)
 	reported.MarkReported(items)
 
-	return reports
+	return reports, items
 }
 
 func boot(ctx context.Context, app *app.App) error {
