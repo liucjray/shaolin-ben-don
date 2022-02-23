@@ -111,6 +111,9 @@ func main() {
 		}
 
 		for {
+			// update remaining time from ExpiresDate
+			pendingItems.UpdateRemainSecondBeforeExpireValues()
+
 			select {
 			case chatId := <-subscribe:
 				subscription[chatId] = true
@@ -140,9 +143,6 @@ func main() {
 					log.Fatal(err)
 				}
 			case <-pendingItems.Chan():
-				// update remaining time from ExpiresDate
-				pendingItems.UpdateRemainSecondBeforeExpireValues()
-
 				broadcast(subscription, pendingItems.ExtractExpiringItems(), app)
 			case <-heartbeat:
 				// call heartbeat to prevent session from expiring
