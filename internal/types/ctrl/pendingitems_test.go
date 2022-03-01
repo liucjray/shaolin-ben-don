@@ -36,9 +36,6 @@ func TestPendingItems(t *testing.T) {
 		if nextTime := data.NextTime(); nextTime != 0 {
 			t.Fatalf("expected zero value (next time: %s)", data.NextTime())
 		}
-		if data.Chan() != nil {
-			t.Fatal("expected nil timer")
-		}
 	}
 
 	// test timer

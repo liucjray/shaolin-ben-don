@@ -73,17 +73,13 @@ func (info *PendingItems) ExtractExpiringItems() []*typesjson.ProgressItem {
 }
 
 func (info *PendingItems) updateTimer(next time.Duration) {
-	if info.timer != nil {
-		info.timer.Stop()
-	}
-
 	if next > 0 {
 		if info.timer == nil {
 			info.timer = time.NewTimer(next)
 		} else {
 			info.timer.Reset(next)
 		}
-	} else {
-		info.timer = nil
+	} else if info.timer != nil {
+		info.timer.Stop()
 	}
 }
