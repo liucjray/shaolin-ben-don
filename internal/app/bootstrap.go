@@ -3,10 +3,10 @@ package app
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"github.com/wolftotem4/shaolin-ben-don/config"
 	"github.com/wolftotem4/shaolin-ben-don/internal/client"
+	_ "modernc.org/sqlite"
 )
 
 type App struct {
@@ -31,7 +31,7 @@ func Register() (*App, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	db, err = sqlx.Open("sqlite3", "db.sqlite")
+	db, err = sqlx.Open("sqlite", "db.sqlite")
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
