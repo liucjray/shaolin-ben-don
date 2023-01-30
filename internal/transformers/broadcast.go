@@ -30,7 +30,7 @@ func (link *LinkItems) String() string {
 			))
 		} else {
 			buffer = append(buffer, fmt.Sprintf(
-				"<b>%s</b>\n%s",
+				"<b>#%s</b>\n%s",
 				tgbotapi.EscapeText(tgbotapi.ModeHTML, item.ShopName),
 				tgbotapi.EscapeText(tgbotapi.ModeHTML, u.String()),
 			))
